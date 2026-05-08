@@ -64,7 +64,7 @@ def process_firewall_traffic(server_ips: str, targetSubnet: str, app: str, env: 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     PRIMARY_FILE = os.path.join(script_dir, "input", input_file)
-    COMMON_FILE = os.path.join(script_dir, "input", "Common_services.xlsx")
+    COMMON_FILE = os.path.join(script_dir, "data_input", "Common_services.xlsx")
 
     # ================================
     # FETCH FILES
