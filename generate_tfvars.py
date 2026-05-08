@@ -105,9 +105,12 @@ def generate_tfvars(input_file, output_file):
 # ================================
 if __name__ == "__main__":
     # Dynamically find the output folder just like the first script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    input_path = os.path.join(script_dir, "output", "firewall-buildsheet.xlsx")
-    output_path = os.path.join(script_dir, "output", "firewall.tfvars")
+    # script_dir = os.path.dirname(os.path.abspath(__file__))
+    # input_path = os.path.join(script_dir, "output", "firewall-buildsheet.xlsx")
+    # output_path = os.path.join(script_dir, "output", "firewall.tfvars")
+    # Read and write from the cloud container's temporary memory
+    input_path = "/tmp/Processed_Rules.xlsx"
+    output_path = "/tmp/firewall.tfvars"
     
     try:
         # Run the generator and print the success message for the agent to catch

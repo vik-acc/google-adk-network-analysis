@@ -1,69 +1,175 @@
+# import subprocess
+# import os
+# from google.adk.agents import Agent
+
+# def run_firewall_script(server_ips: str, targetSubnet: str, app: str, env: str, input_file: str) -> str:
+#     """
+#     Executes the firewall script and then generates the Terraform variables.
+#     """
+#     script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+#     # Define both script paths
+#     simplify_script = os.path.join(script_dir, 'Firewall_Simplify.py')
+#     tfvars_script = os.path.join(script_dir, 'generate_tfvars.py')
+    
+#     final_summary = ""
+    
+#     # --- PHASE 1: Data Processing ---
+#     try:
+#         result1 = subprocess.run(
+#             [
+#                 'python', simplify_script, 
+#                 '--server_ips', server_ips,
+#                 '--subnet', targetSubnet,
+#                 '--app', app,
+#                 '--env', env,
+#                 '--input_file', input_file,
+#             ], 
+#             capture_output=True, text=True, check=True
+#         )
+#         final_summary += f"✅ PHASE 1 COMPLETE:\n{result1.stdout}\n"
+#     except subprocess.CalledProcessError as e:
+#         return f"❌ Phase 1 (Data Processing) failed:\n{e.stderr}"
+#     except FileNotFoundError:
+#         return "Could not find Firewall_Simplify.py."
+
+#     # --- PHASE 2: Terraform Generation ---
+#     # This only runs if Phase 1 was completely successful
+#     try:
+#         result2 = subprocess.run(
+#             ['python', tfvars_script], 
+#             capture_output=True, text=True, check=True
+#         )
+#         final_summary += f"✅ PHASE 2 COMPLETE:\n{result2.stdout}"
+#     except subprocess.CalledProcessError as e:
+#         return final_summary + f"\n❌ Phase 2 (Terraform Generation) failed:\n{e.stderr}"
+#     except FileNotFoundError:
+#         return final_summary + "\nCould not find generate_tfvars.py."
+
+#     return final_summary
+
+# # --- Agent Definition ---
+# root_agent = Agent(
+#     name="Network_Admin_Agent",
+#     model="gemini-2.5-flash",
+#     description="Assistant for managing firewall rules.",
+#     instruction="""
+#         You are a network administrator assistant. To build firewall rules, you must use the run_firewall_script tool.
+        
+#         Before running it, ask the user for:
+#         1. server IPs (e.g., "10.13.48.62, 10.13.105.37")
+#         2. targetSubnet (e.g., "10.0.0.0/24")
+#         3. app (e.g., "orders")
+#         4. env (e.g., "prod")
+#         5. input_file (e.g., "input_file.xlsx")
+        
+#         Once you have all 5, execute the tool and give the user the summary.
+#     """,
+#     tools=[run_firewall_script]
+# )
+
+
 import subprocess
 import os
+import json
+from google.cloud import storage
 from google.adk.agents import Agent
 
-def run_firewall_script(server_ips: str, targetSubnet: str, app: str, env: str, input_file: str) -> str:
+# ==========================================
+# 0. AUTHENTICATION HELPER
+# ==========================================
+def get_gcs_client():
+    """Initializes the GCS client using the JSON key stored in Render Env Vars."""
+    creds_json = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
+    if creds_json:
+        creds_dict = json.loads(creds_json)
+        return storage.Client.from_service_account_info(creds_dict)
+    return storage.Client()
+
+# ==========================================
+# 1. THE MAIN CLOUD TOOL
+# ==========================================
+def run_firewall_script_in_cloud(bucket_link: str, server_ips: str, targetSubnet: str, app: str, env: str, input_file: str) -> str:
     """
-    Executes the firewall script and then generates the Terraform variables.
+    Downloads input from GCS, runs Phase 1 & 2, and uploads results back to the bucket.
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Clean bucket name (handles gs:// or raw names)
+    bucket_name = bucket_link.replace("gs://", "").strip("/")
+    client = get_gcs_client()
+    bucket = client.bucket(bucket_name)
     
-    # Define both script paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     simplify_script = os.path.join(script_dir, 'Firewall_Simplify.py')
     tfvars_script = os.path.join(script_dir, 'generate_tfvars.py')
     
-    final_summary = ""
+    # Temporary file paths in the cloud container
+    local_input = f"/tmp/{input_file}"
+    local_output_excel = "/tmp/Processed_Rules.xlsx" # Ensure your script saves here
+    local_output_tfvars = "/tmp/firewall.tfvars"    # Ensure your script saves here
     
-    # --- PHASE 1: Data Processing ---
+    summary = f"🚀 Starting Cloud Pipeline for Bucket: {bucket_name}\n"
+
     try:
+        # --- DOWNLOAD ---
+        blob = bucket.blob(input_file)
+        blob.download_to_filename(local_input)
+        summary += f"📥 Downloaded {input_file} from bucket.\n"
+
+        # --- PHASE 1: Data Processing ---
         result1 = subprocess.run(
-            [
-                'python', simplify_script, 
-                '--server_ips', server_ips,
-                '--subnet', targetSubnet,
-                '--app', app,
-                '--env', env,
-                '--input_file', input_file,
-            ], 
+            ['python', simplify_script, '--server_ips', server_ips, '--subnet', targetSubnet, 
+             '--app', app, '--env', env, '--input_file', local_input],
             capture_output=True, text=True, check=True
         )
-        final_summary += f"✅ PHASE 1 COMPLETE:\n{result1.stdout}\n"
-    except subprocess.CalledProcessError as e:
-        return f"❌ Phase 1 (Data Processing) failed:\n{e.stderr}"
-    except FileNotFoundError:
-        return "Could not find Firewall_Simplify.py."
+        summary += f"✅ Phase 1 (Processing) Complete.\n"
 
-    # --- PHASE 2: Terraform Generation ---
-    # This only runs if Phase 1 was completely successful
-    try:
+        # --- PHASE 2: Terraform Generation ---
+        # Note: Phase 2 usually picks up the Excel generated by Phase 1
         result2 = subprocess.run(
             ['python', tfvars_script], 
             capture_output=True, text=True, check=True
         )
-        final_summary += f"✅ PHASE 2 COMPLETE:\n{result2.stdout}"
+        summary += f"✅ Phase 2 (Terraform) Complete.\n"
+
+        # --- UPLOAD ---
+        # Uploading the results back to the same bucket
+        output_blobs = {
+            "Processed_Rules.xlsx": local_output_excel,
+            "firewall.tfvars": local_output_tfvars
+        }
+        
+        for remote_name, local_path in output_blobs.items():
+            if os.path.exists(local_path):
+                bucket.blob(remote_name).upload_from_filename(local_path)
+                summary += f"📤 Uploaded {remote_name} to bucket.\n"
+
     except subprocess.CalledProcessError as e:
-        return final_summary + f"\n❌ Phase 2 (Terraform Generation) failed:\n{e.stderr}"
-    except FileNotFoundError:
-        return final_summary + "\nCould not find generate_tfvars.py."
+        return f"❌ Script Error:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
+    except Exception as e:
+        return f"❌ Cloud Logic Error: {str(e)}"
 
-    return final_summary
+    return summary + "\n✨ All tasks finished. Check your bucket for the output files!"
 
-# --- Agent Definition ---
+# ==========================================
+# 2. AGENT DEFINITION
+# ==========================================
 root_agent = Agent(
     name="Network_Admin_Agent",
     model="gemini-2.5-flash",
-    description="Assistant for managing firewall rules.",
+    description="Universal assistant for managing firewall rules via Cloud Storage.",
     instruction="""
-        You are a network administrator assistant. To build firewall rules, you must use the run_firewall_script tool.
+        You are a network administrator assistant. 
         
-        Before running it, ask the user for:
-        1. server IPs (e.g., "10.13.48.62, 10.13.105.37")
-        2. targetSubnet (e.g., "10.0.0.0/24")
-        3. app (e.g., "orders")
-        4. env (e.g., "prod")
-        5. input_file (e.g., "input_file.xlsx")
+        Before running the process, you must have:
+        1. A Bucket link or name (e.g., gs://my-bucket)
+        2. server IPs
+        3. targetSubnet
+        4. app
+        5. env
+        6. input_file (the name of the file inside that bucket)
         
-        Once you have all 5, execute the tool and give the user the summary.
+        If the user provides a bucket link, assume it is used for both input and output.
+        Execute the tool and provide the final summary of the uploaded files.
     """,
-    tools=[run_firewall_script]
+    tools=[run_firewall_script_in_cloud]
 )

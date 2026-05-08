@@ -1,0 +1,6 @@
+google-adk
+pandas
+numpy
+openpyxl
+google-cloud-storage
+requests
