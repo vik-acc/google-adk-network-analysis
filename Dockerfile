@@ -20,4 +20,5 @@ WORKDIR /app/AGENT
 EXPOSE 8080
 
 # Command to boot up the ADK web interface
-CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080"]
+# CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["adk", "web", "agent.py", "--host", "0.0.0.0", "--port", "8080"]
