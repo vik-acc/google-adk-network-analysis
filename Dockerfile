@@ -21,4 +21,4 @@ EXPOSE 8080
 
 # Command to boot up the ADK web interface
 # CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080"]
-CMD ["adk", "web", ".", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["adk", "web", "--port", "8080"]
