@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 3. MOVE into the AGENT folder before starting
-WORKDIR /app/AGENT
+WORKDIR /app
 
 # 4. Start the web server looking at the current directory (.)
 EXPOSE 8080
