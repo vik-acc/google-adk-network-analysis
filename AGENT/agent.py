@@ -68,18 +68,34 @@
 #     tools=[run_firewall_script]
 # )
 
-
 import os
 import json
 import io
-from google.adk import Agent, tool
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+import sys
+import traceback
 
-# 1. IMPORT YOUR ACTUAL FUNCTIONS
-from Firewall_Simplify import process_firewall_traffic
-from generate_tfvars import generate_tfvars
+print("--- [SYSTEM] ATTEMPTING TO LOAD AGENT.PY ---")
+
+try:
+    from google.adk import Agent, tool
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    
+    # Importing your custom scripts
+    from Firewall_Simplify import process_firewall_traffic
+    from generate_tfvars import generate_tfvars
+    
+    print("--- [SYSTEM] IMPORTS SUCCESSFUL ---")
+    
+except Exception as e:
+    print("\n" + "!"*40)
+    print("CRASH DURING AGENT IMPORT:")
+    traceback.print_exc()
+    print("!"*40 + "\n")
+
+# --- GOOGLE DRIVE DOWNLOAD HELPER ---
+# (Leave the rest of your file exactly as it was below here...)
 
 # --- GOOGLE DRIVE DOWNLOAD HELPER ---
 def download_from_drive(file_id, local_path):
