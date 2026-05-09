@@ -4,3 +4,5 @@ numpy
 openpyxl
 google-cloud-storage
 requests
+google-auth
+google-api-python-client
